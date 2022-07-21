@@ -8,8 +8,10 @@
 
 #define BUF_SIZE 4096
 
+struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
+extern bool bench;
 
 static int get_request(struct socket *sock, unsigned char *buf, size_t size)
 {
@@ -28,14 +30,10 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
 
-    /*
-     * TODO: during benchmarking, such printk() is useless and lead to worse
-     * result. Add a specific build flag for these printk() would be good.
-     */
-    printk(MODULE_NAME ": start get response\n");
     /* get msg */
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
-    printk(MODULE_NAME ": get request = %s\n", buf);
+    if (length)
+        TRACE(recv_msg);
 
     return length;
 }
@@ -55,11 +53,9 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
     vec.iov_base = buf;
     vec.iov_len = strlen(buf);
 
-    printk(MODULE_NAME ": start send request.\n");
-
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
 
-    printk(MODULE_NAME ": send request = %s\n", buf);
+    TRCAE(send_msg);
 
     return length;
 }
@@ -71,7 +67,7 @@ static void echo_server_worker(struct work_struct *work)
 
     buf = kzalloc(BUF_SIZE, GFP_KERNEL);
     if (!buf) {
-        printk(KERN_ERR MODULE_NAME ": kmalloc error....\n");
+        TRCAE(kmal_err);
         return;
     }
 
