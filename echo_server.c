@@ -11,7 +11,7 @@
 struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
-extern bool becnh;
+extern bool bench;
 
 static int get_request(struct socket *sock, unsigned char *buf, size_t size)
 {
@@ -30,15 +30,11 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
     msg.msg_controllen = 0;
     msg.msg_flags = 0;
 
-    /*
-     * TODO: during benchmarking, such printk() is useless and lead to worse
-     * result. Add a specific build flag for these printk() would be good.
-     */
-    printk(MODULE_NAME ": start get response\n");
     /* get msg */
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
-    printk(MODULE_NAME ": get request = %s\n", buf);
-    TRACE(recvmsg);
+    if (length)
+        TRACE(recv_msg);
+
     return length;
 }
 
@@ -57,11 +53,9 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
     vec.iov_base = buf;
     vec.iov_len = strlen(buf);
 
-    printk(MODULE_NAME ": start send request.\n");
-
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
 
-    printk(MODULE_NAME ": send request = %s\n", buf);
+    TRACE(send_msg);
 
     return length;
 }
@@ -73,7 +67,7 @@ static void echo_server_worker(struct work_struct *work)
 
     buf = kzalloc(BUF_SIZE, GFP_KERNEL);
     if (!buf) {
-        printk(KERN_ERR MODULE_NAME ": kmalloc error....\n");
+        TRACE(kmal_err);
         return;
     }
 
@@ -81,14 +75,14 @@ static void echo_server_worker(struct work_struct *work)
         int res = get_request(worker->sock, buf, BUF_SIZE - 1);
         if (res <= 0) {
             if (res) {
-                printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
+                TRACE(recv_err);
             }
             break;
         }
 
         res = send_request(worker->sock, buf, res);
         if (res < 0) {
-            printk(KERN_ERR MODULE_NAME ": send request error = %d\n", res);
+            TRACE(send_err);
             break;
         }
 
@@ -97,6 +91,7 @@ static void echo_server_worker(struct work_struct *work)
 
     kernel_sock_shutdown(worker->sock, SHUT_RDWR);
     kfree(buf);
+    TRACE(shdn_msg);
 }
 
 static struct work_struct *create_work(struct socket *sk)
@@ -159,13 +154,14 @@ int echo_server_daemon(void *arg)
         if (error < 0) {
             if (signal_pending(current))
                 break;
-            printk(KERN_ERR MODULE_NAME ": socket accept error = %d\n", error);
+            TRACE(acpt_err);
             continue;
         }
 
         if (unlikely(!(work = create_work(sock)))) {
             printk(KERN_ERR MODULE_NAME
                    ": create work error, connection closed\n");
+            TRACE(work_err);
             kernel_sock_shutdown(sock, SHUT_RDWR);
             sock_release(sock);
             continue;
@@ -176,7 +172,7 @@ int echo_server_daemon(void *arg)
     }
 
     printk(MODULE_NAME ": daemon shutdown in progress...\n");
-
+    do_analysis();
     daemon.is_stopped = true;
     free_work();
 
