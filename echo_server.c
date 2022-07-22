@@ -6,10 +6,12 @@
 
 #include "echo_server.h"
 
-#define BUF_SIZE 4096
+#define BUF_SIZE 1024
 
+struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
 extern struct workqueue_struct *kecho_wq;
+extern bool becnh;
 
 static int get_request(struct socket *sock, unsigned char *buf, size_t size)
 {
@@ -36,7 +38,7 @@ static int get_request(struct socket *sock, unsigned char *buf, size_t size)
     /* get msg */
     length = kernel_recvmsg(sock, &msg, &vec, size, size, msg.msg_flags);
     printk(MODULE_NAME ": get request = %s\n", buf);
-
+    TRACE(recvmsg);
     return length;
 }
 
@@ -125,6 +127,19 @@ static void free_work(void)
         sock_release(tar->sock);
         kfree(tar);
     }
+}
+
+void do_analysis(void)
+{
+    smp_mb();
+    TRACE_PRINT(KERN_ERR, recv_msg);
+    TRACE_PRINT(KERN_ERR, send_msg);
+    TRACE_PRINT(KERN_ERR, shdn_msg);
+    TRACE_PRINT(KERN_ERR, recv_err);
+    TRACE_PRINT(KERN_ERR, send_err);
+    TRACE_PRINT(KERN_ERR, kmal_err);
+    TRACE_PRINT(KERN_ERR, work_err);
+    TRACE_PRINT(KERN_ERR, acpt_err);
 }
 
 int echo_server_daemon(void *arg)
