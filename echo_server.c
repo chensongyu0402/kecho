@@ -76,7 +76,6 @@ static void echo_server_worker(struct work_struct *work)
         if (res <= 0) {
             if (res) {
                 printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
-                printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
             }
             break;
         }
