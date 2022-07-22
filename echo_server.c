@@ -55,7 +55,7 @@ static int send_request(struct socket *sock, unsigned char *buf, size_t size)
 
     length = kernel_sendmsg(sock, &msg, &vec, 1, size);
 
-    TRCAE(send_msg);
+    TRACE(send_msg);
 
     return length;
 }
@@ -67,7 +67,7 @@ static void echo_server_worker(struct work_struct *work)
 
     buf = kzalloc(BUF_SIZE, GFP_KERNEL);
     if (!buf) {
-        TRCAE(kmal_err);
+        TRACE(kmal_err);
         return;
     }
 
@@ -75,6 +75,7 @@ static void echo_server_worker(struct work_struct *work)
         int res = get_request(worker->sock, buf, BUF_SIZE - 1);
         if (res <= 0) {
             if (res) {
+                printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
                 printk(KERN_ERR MODULE_NAME ": get request error = %d\n", res);
             }
             break;
