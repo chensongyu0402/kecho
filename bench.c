@@ -13,7 +13,7 @@
 
 #define TARGET_HOST "127.0.0.1"
 #define TARGET_PORT 12345
-#define BENCH_COUNT 10
+#define BENCH_COUNT 50
 #define BENCHMARK_RESULT_FILE "bench.txt"
 
 /* length of unique message (TODO below) should shorter than this */
@@ -54,12 +54,10 @@
  * each worker could produce benchmarking result which is more conforms to
  * realworld usage.
  */
-static const char *msg_dum = "dummy message";
-
 static pthread_t pt[MAX_THREAD];
 
 /* block all workers before they are all ready to benchmarking kecho */
-static int n_retry;
+static int ready;
 
 static pthread_mutex_t res_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t worker_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -78,20 +76,21 @@ static inline long time_diff_us(struct timeval *start, struct timeval *end)
 static void *bench_worker(__attribute__((unused)))
 {
     int sock_fd;
-    char dummy[MAX_MSG_LEN];
+    char *reqstr = str;
+    char recstr[MAX_MSG_LEN];
     struct timeval start, end;
 
     /* wait until all workers created */
     pthread_mutex_lock(&worker_lock);
-    if (++n_retry == MAX_THREAD) {
+    ready += 1;
+    if (ready == MAX_THREAD) {
         pthread_cond_broadcast(&worker_wait);
     } else {
-        while (n_retry < MAX_THREAD) {
+        while (ready < MAX_THREAD) 
             if (pthread_cond_wait(&worker_wait, &worker_lock)) {
                 puts("pthread_cond_wait failed");
                 exit(-1);
             }
-        }
     }
     pthread_mutex_unlock(&worker_lock);
     /* all workers are ready, let's start bombing the server */
@@ -113,9 +112,11 @@ static void *bench_worker(__attribute__((unused)))
         exit(-1);
     }
 
+    int recvlen = 0, msglen, reqlen = strlen(reqstr);
     gettimeofday(&start, NULL);
-    send(sock_fd, msg_dum, strlen(msg_dum), 0);
-    recv(sock_fd, dummy, MAX_MSG_LEN, 0);
+    send(sock_fd, reqstr, reqlen, 0);
+    while ((msglen = recv(sock_fd, recstr + recvlen, MAX_MSG_LEN, 0)) &&
+           (recvlen += msglen) < reqlen);
     gettimeofday(&end, NULL);
 
     shutdown(sock_fd, SHUT_RDWR);
@@ -129,14 +130,28 @@ static void *bench_worker(__attribute__((unused)))
     pthread_mutex_lock(&res_lock);
     time_res[idx++] += time_diff_us(&start, &end);
     pthread_mutex_unlock(&res_lock);
+    free(reqstr);
 
     pthread_exit(NULL);
 }
 
+static char *rand_string()
+{
+    int r = MASK(rand());
+    char *str = calloc(r + 1, 1);
+    for (int i = 0; i < r; i++) {
+        char c = 97 + rand() % 26;
+        str[i] = c;
+    }
+    return str;
+}
+
 static void create_worker(int thread_qty)
 {
+    srand(time(NULL));
     for (int i = 0; i < thread_qty; i++) {
-        if (pthread_create(&pt[i], NULL, bench_worker, NULL)) {
+        char *str = rand_string();
+        if (pthread_create(&pt[i], NULL, bench_worker, str)) {
             puts("thread creation failed");
             exit(-1);
         }
@@ -146,7 +161,7 @@ static void create_worker(int thread_qty)
 static void bench(void)
 {
     for (int i = 0; i < BENCH_COUNT; i++) {
-        n_retry = 0;
+        ready = 0;
 
         create_worker(MAX_THREAD);
 
