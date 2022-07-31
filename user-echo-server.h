@@ -1,5 +1,5 @@
-#include<stdio.h>
-#include<stdlib.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #ifndef CLIENT_LIST_H /* CLIENT_LIST_H */
 #define CLIENT_LIST_H
@@ -15,16 +15,16 @@ void delete_list(client_list_t **list)
     while (*list) {
         client_list_t *delete = *list;
         *list = (*list)->next;
-        free(delelte->addr);
+        free(delete->addr);
         free(delete);
     }
 }
 
-client_list_t *delete_client(clint_list_t **list, int clinet)
+client_list_t *delete_client(client_list_t **list, int client)
 {
     if (!(*list))
-        return NULL:
-    
+        return NULL;
+
     if ((*list)->client == client) {
         client_list_t *tmp = (*list)->next;
         free((*list)->addr);
@@ -32,20 +32,20 @@ client_list_t *delete_client(clint_list_t **list, int clinet)
         return tmp;
     }
 
-    (*list)->next = delete_client(&(*list)->next, clinet);
+    (*list)->next = delete_client(&(*list)->next, client);
     return *list;
 }
 
-void server_err(conut char *str, client_list_t **list)
+void server_err(const char *str, client_list_t **list)
 {
     perror(str);
     delete_list(list);
     exit(-1);
 }
 
-client_list_t *new_list(int client, char *addr. client_list_t **list)
+client_list_t *new_list(int client, char *addr, client_list_t **list)
 {
-    clent_list_t *new = (client_list_t*)malloc(sizoef(client_list_t));
+    client_list_t *new = (client_list_t *) malloc(sizeof(client_list_t));
     if (!new)
         server_err("Fail to allocate memory", list);
     new->addr = strdup(addr);
@@ -62,7 +62,7 @@ void push_back_client(client_list_t **list, int client, char *addr)
         *list = new_list(client, addr, list);
     else {
         client_list_t *tmp = *list;
-        while(tmp->next)
+        while (tmp->next)
             tmp = tmp->next;
         tmp->next = new_list(client, addr, list);
     }
@@ -85,7 +85,7 @@ enum {
 
 struct runtime_statistics {
     atomic_uint_fast64_t epll_cnt, clnt_cnt, msg_cnt;
-    atomic_uint_fast64_t send_msg, recv_msg, shdn_msg;  
+    atomic_uint_fast64_t send_msg, recv_msg, shdn_msg;
 };
 extern struct runtime_statistics stats;
 
