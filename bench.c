@@ -18,6 +18,18 @@
 
 /* length of unique message (TODO below) should shorter than this */
 #define MAX_MSG_LEN 32
+#define MIN_MSG_LEN 16
+#if MAX_MSG_LEN == MIN_MSG_LEN
+#define MASK(num) ((MAX_MSG_LEN - 1))
+#elif MIN_MSG_LEN == 0
+#if (MAX_MSG_LEN & (MAX_MSG_LEN - 1)) == 0
+#define MASK(num) ((num & (MAX_MSG_LEN - 1)))
+#else
+#define MASK(num) (num % MAX_MSG_LEN)
+#endif
+#else
+#define MASK(num) ((num % (MAX_MSG_LEN - MIN_MSG_LEN) + MIN_MSG_LEN))
+#endif
 
 /*
  * Too much concurrent connection would be treated as sort of DDoS attack
@@ -73,7 +85,7 @@ static inline long time_diff_us(struct timeval *start, struct timeval *end)
            (end->tv_usec - start->tv_usec);
 }
 
-static void *bench_worker(__attribute__((unused)))
+static void *bench_worker(void *str)
 {
     int sock_fd;
     char *reqstr = str;
@@ -86,7 +98,7 @@ static void *bench_worker(__attribute__((unused)))
     if (ready == MAX_THREAD) {
         pthread_cond_broadcast(&worker_wait);
     } else {
-        while (ready < MAX_THREAD) 
+        while (ready < MAX_THREAD)
             if (pthread_cond_wait(&worker_wait, &worker_lock)) {
                 puts("pthread_cond_wait failed");
                 exit(-1);
@@ -116,13 +128,14 @@ static void *bench_worker(__attribute__((unused)))
     gettimeofday(&start, NULL);
     send(sock_fd, reqstr, reqlen, 0);
     while ((msglen = recv(sock_fd, recstr + recvlen, MAX_MSG_LEN, 0)) &&
-           (recvlen += msglen) < reqlen);
+           (recvlen += msglen) < reqlen)
+        ;
     gettimeofday(&end, NULL);
 
     shutdown(sock_fd, SHUT_RDWR);
     close(sock_fd);
 
-    if (strncmp(msg_dum, dummy, strlen(msg_dum))) {
+    if (strncmp(reqstr, recstr, reqlen)) {
         puts("echo message validation failed");
         exit(-1);
     }
