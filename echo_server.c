@@ -6,7 +6,7 @@
 
 #include "echo_server.h"
 
-#define BUF_SIZE 1024
+#define BUF_SIZE 4096
 
 struct runtime_statistics stats = {ATOMIC_INIT(0)};
 struct echo_service daemon = {.is_stopped = false};
